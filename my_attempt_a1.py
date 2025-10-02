@@ -3,11 +3,14 @@
 
 import random
 import unittest
+import json
 from enum import Enum, auto
 from collections import deque
 
-NUM_COLORS = 10
-
+NUM_COLOURS = 10
+MAX_COMPLEXITY = 3
+SOLUTIONS_FILE = "C:/Users/User/Documents/School/3P71 TA 2025/3P71_2025_A1/benchmark/arc-agi_solutions.json"
+CHALLENGES_FILE = "C:/Users/User/Documents/School/3P71 TA 2025/3P71_2025_A1/benchmark/arc-agi_challenges.json"
 
 class Axis(Enum):
     HORIZONTAL = auto()
@@ -19,7 +22,7 @@ class Degrees(Enum):
     d270 = auto()
 
 class Colour(Enum):
-    RED = 0
+    BLANK = 0
     ORANGE = 1
     YELLOW = 2
     GREEN = 3
@@ -30,10 +33,21 @@ class Colour(Enum):
     BROWN = 8
     BLACK = 9
 
+SCALE_FACTORS = [2, 3]
+SHIFTS = [-1, 0, 1]
+DIMENSIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+COLOUR_MAP = [
+    [(0, 4), (1, 0), (2, 3)],  # Specific mapping found in e8c4b1f6
+    [(1, 3), (0, 4), (2, 0)],  # Common variations
+    [(0, 1), (1, 2), (2, 0)],
+    [(1, 0), (2, 4)],  # Partial mappings
+    [(0, 3), (2, 4)]
+]
 
-def color_change(grid, old_colour, new_colour):
+
+def colour_change(grid, old_colour, new_colour):
     '''
-    Replaces all occurrences of a specific color in a 2D grid with a new color.
+    Replaces all occurrences of a specific colour in the grid with a new colour.
     '''
     return [[new_colour if cell == old_colour else cell for cell in row] for row in grid]
 
@@ -42,12 +56,16 @@ def swap_colours(grid, first_colour, second_colour):
     Swap all elements of first_colour and second_colour
     '''
     rows, cols = len(grid), len(grid[0])
+    new_grid = [[0 for c in range(len(grid[0]))] for r in range(len(grid))]
     for r in range(rows):
         for c in range(cols):
             if(grid[r][c] == first_colour):
-                grid[r][c] = second_colour
+                new_grid[r][c] = second_colour
             elif(grid[r][c] == second_colour):
-                grid[r][c] = first_colour
+                new_grid[r][c] = first_colour
+            else:
+                new_grid[r][c] = grid[r][c]
+    return new_grid
 
 def apply_mirror(grid, axis: Axis):
     '''
@@ -83,11 +101,98 @@ def apply_rotate(grid, degree: Degrees):
     elif degree == Degrees.d180:
         return [[grid[rows - 1 - r][cols - 1 - c] for c in range(cols)] for r in range(rows)]
     elif degree == Degrees.d270:
-        return [[grid[c][cols - 1 - r] for c in range(cols)] for r in range(rows)]
+        return [[grid[c][cols - 1 - r] for c in range(rows)] for r in range(cols)]
     else:
         raise ValueError("Invalid degrees to rotate")
     
+def resize_irregular(grid, new_height, new_width):
+    '''
+    Resizes a grid, either by repeating rows & columns or by removing them until the desired dimensions are reached
+    '''
+    new_grid = []
+    for i in range(new_height):
+        new_row = []
+        for j in range(new_width):
+            orig_i = min(i, len(grid) - 1)
+            orig_j = min(j, len(grid[0]) - 1)
+            new_row.append(grid[orig_i][orig_j])
+        new_grid.append(new_row)
+    return new_grid
 
+def diagonal_reflection(grid, old_colour, new_colour):
+    '''
+    Reflects all elements of old_colour across the diagonal, then sets them to new_colour, all old positions of old_colour are set blank
+    '''
+    # Reflect colour across diagonal and change it
+    new_grid = [row[:] for row in grid]  # Create copy
+    
+    for r in range(len(grid)):
+        for c in range(len(grid[0])):
+            if grid[r][c] == old_colour:
+                # Clear the original position
+                new_grid[r][c] = 0
+                # Reflect across main diagonal (swap r and c)
+                if c < len(grid) and r < len(grid[0]):
+                    new_grid[c][r] = new_colour
+    return new_grid
+
+def scale_2x2(grid):
+    return scale_by(grid, 2, 2)
+
+def scale_3x3(grid):
+    return scale_by(grid, 3, 3)
+
+def scale_2x1(grid):
+    return scale_by(grid, 2, 1)
+
+def scale_1x2(grid):
+    return scale_by(grid, 1, 2)
+
+def scale_by(grid, row_factor, col_factor):
+    '''
+    Enlarge each element of the grid to take up an enlarged space defined by row_factor and col_factor
+    '''
+    new_grid = [[0 for i in range(len(grid[0]) * col_factor)] for j in range(len(grid) * row_factor)]
+    for r in range(len(grid)):
+        for c in range(len(grid[0])):
+            new_r_start = r * row_factor
+            new_c_start = c * col_factor
+            for i in range(row_factor):
+                for j in range(col_factor):
+                    new_grid[new_r_start + i][new_c_start + j] = grid[r][c]
+    return new_grid
+
+def positional_shift(grid, old_colour, new_colour, r_offset, c_offset):
+    new_grid = [[0 for i in range(len(grid[0]))] for j in range(len(grid))]
+    for r in range(len(grid)):
+        for c in range(len(grid[0])):
+            if grid[r][c] == old_colour:
+                new_grid[r][c] = 0
+                if (r + r_offset < len(grid)) and (c + c_offset < len(grid[0])):
+                    new_grid[r + r_offset][c + c_offset] = new_colour
+            else:
+                new_grid[r][c] = grid[r][c]
+
+def colour_map_multiple()
+
+        
+OPERATIONS = {
+    "SwapColour": swap_colours,
+    "ColourChange": colour_change,
+    "Mirror": apply_mirror,
+    "Rotate": apply_rotate,
+    "ResizeIrregular": resize_irregular,
+    "DiagonalReflection": diagonal_reflection,
+    "Scale2x2": scale_2x2,
+    "Scale3x3": scale_3x3,
+    "Scale2x1": scale_2x1,
+    "Scale1x2": scale_1x2,
+    "PositionalShift": positional_shift,
+}
+
+#
+# Grid Operations
+#
 
 def create_empty_grid(size):
     '''
@@ -98,9 +203,9 @@ def create_empty_grid(size):
 def create_random_grid(size):
     '''
     Creates a grid with dimensions (size, size) where each element is a random value
-    between 0 and (NUM_COLORS - 1)
+    between 0 and (NUM_COLOURS - 1)
     '''
-    return [[random.randint(0, NUM_COLORS - 1) for _ in range(size)] for _ in range(size)]
+    return [[random.randint(0, NUM_COLOURS - 1) for _ in range(size)] for _ in range(size)]
 
 def print_grid(grid):
     '''
@@ -114,54 +219,92 @@ def print_grid(grid):
         out += " |\n"
     print(out)
 
-OPERATIONS = {
-    "ColorChange": color_change,
-    "Mirror": apply_mirror,
-    "Rotate": apply_rotate,
-}
-
 def generate_children(program):
     children = []
+
+    # Generate all possible colour swaps
+    for i in range(1, NUM_COLOURS):
+        for j in range(i+1, NUM_COLOURS): 
+            children.append(create_child(program, "SwapColour", [i, j]))
+
     # Generate all possible colour changes
-    for i in range(NUM_COLORS):
-        for j in range(NUM_COLORS):
-            result_grid = color_change(program.grid, i, j)
-            new_seq = program.seq.copy().append( ("ColorChange", i, j) )
-            assert new_seq != program.seq
-            result_program = Program(result_grid, new_seq, program.complexity + 1)
-            children.append(result_program)
+    for i in range(1, NUM_COLOURS):
+        for j in range(1, NUM_COLOURS):
+            children.append(create_child(program, "ColourChange", [i, j]))
     
     # Mirrors
     for axis in Axis:
-        new_seq = program.seq.copy().append(("Mirror", axis))
-        children.append(Program(apply_mirror(program.grid, axis), new_seq, program.complexity + 1))
+        children.append(create_child(program, "Mirror", [axis]))
 
     # Rotate
     for degrees in Degrees:
-        new_seq = program.seq.copy().append(("Rotate", degrees))
-        children.append(Program(apply_rotate(program.grid, degrees), new_seq, program.complexity + 1))
+        children.append(create_child(program, "Rotate", [degrees]))
 
-def is_program_acceptable(program):
-    for 
+    # Scale
+    children.append(create_child(program, "Scale2x2"))
+    children.append(create_child(program, "Scale3x3"))
+    children.append(create_child(program, "Scale2x1"))
+    children.append(create_child(program, "Scale1x2"))
 
-def BFS(start_grid, complexity_limit):
-    print("Conducting BFS...")
-    initial_program = Program(start_grid)
+    # Resize irregular
+    for i in range(len(DIMENSIONS)):
+        for j in range(len(DIMENSIONS)):
+            children.append(create_child(program, "ResizeIrregular", [i, j]))
+    
+    # Positional shift
+
+
+    return children
+
+def create_child(program, op_name, params=[]):
+    new_seq = program.sequence.copy()
+    new_seq.append((op_name, *params))
+    result_grids = [OPERATIONS[op_name](program.grids[i], *params) for i in range(len(program.grids))]
+    return Program(result_grids, new_seq, program.complexity + 1)
+
+def is_program_acceptable(program, train_data):
+    assert len(program.grids) == len(train_data)
+
+    for i in range(len(program.grids)):
+        if program.grids[i] != train_data[i]['output']:
+            return False
+    return True
+
+#
+# Search Algorithms
+#
+
+def BFS(train_data, complexity_limit):
+    initial_program = Program(grids=[x['input'] for x in train_data])
     to_visit = deque()
     to_visit.extend(generate_children(initial_program))
     while(to_visit):
         program = to_visit.pop()
-        if is_program_acceptable(program):
+        if is_program_acceptable(program, train_data):
+            print("BFS found a solution.")
             return program
         if program.complexity < complexity_limit:
             to_visit.extend(generate_children(program))
     print(f"BFS finished without finding a solution (complexity limit: {complexity_limit})")
+    return None
 
 class Program():
-    def __init__(self, grid=[], seq=[][], complexity=0):
-        self.grid = grid
-        self.sequence = seq
+    def __init__(self, grids=[], seq=[], complexity=0):
+        self.grids = grids # [training example][grid]
+        self.sequence = seq # [operation, argument_1, argument_2, ... , argument_x]
         self.complexity = complexity
+
+    # def apply_to_grid(self, grid):
+    #     '''
+    #     Perform all operations listed in sequence on initial grid to find final grid (state)
+    #     '''
+    #     for seq in self.sequence:
+    #         method_name = seq[0]
+    #         args = seq[1:]
+    #         method_obj = globals()[method_name]
+    #         method_obj(grid, *args)
+
+
 
 class TestGridOperations(unittest.TestCase):
     def test_rotate_90(self):
@@ -182,13 +325,44 @@ class TestGridOperations(unittest.TestCase):
         result = apply_rotate(start, Degrees.d270)
         self.assertEqual(expected, result)
 
-
+    def test_scale_2x2(self):
+        start = [[1]]
+        expected = [[1, 1], [1, 1]]
+        result = scale_2x2(start)
+        self.assertEqual(expected, result)
 
 if __name__ == "__main__":
     unittest.main(exit=False)
 
-    test_grid = create_random_grid(3)
-    print_grid(test_grid)
-    test_grid = apply_rotate(test_grid, Degrees.d90)
-    test_grid = apply_rotate(test_grid, Degrees.d90)
-    print_grid(test_grid)
+    
+    #grid = create_random_grid(3);
+    # grid = [[4,1,2],[7,0,1],[0,8,1]]
+    # print_grid(grid)
+    # test = diagonal_reflection(grid, 1, 2);
+    # print_grid(test)
+    # exit()
+
+    try:
+        with open(CHALLENGES_FILE, 'r') as file:
+            challenges_data = json.load(file)
+        with open(SOLUTIONS_FILE, 'r') as file:
+            solutions_data = json.load(file)
+    except FileNotFoundError:
+        print("Error: The training data files were not found.")
+        exit()
+    except json.JSONDecodeError:
+        print("Error: Failed to decode JSON from the file.")
+        exit()
+
+    print("Train / test data loaded.")
+    count_success = 0
+
+    for example in challenges_data:
+        print(f"\nTraining example {example}")
+        train_data = challenges_data[example]['train']
+        test_data = challenges_data[example]['test']
+        test_solution = solutions_data[example]
+
+        BFS_result = BFS(train_data, MAX_COMPLEXITY)
+        if BFS_result is not None:
+            print(BFS_result.sequence)
