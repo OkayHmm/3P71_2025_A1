@@ -43,7 +43,12 @@ COLOUR_MAP = [
     [(1, 0), (2, 4)],  # Partial mappings
     [(0, 3), (2, 4)]
 ]
-
+# Scale with color mapping (for tasks like f2e9a4d1)
+SCALE_COLOUR_MAPS = [
+    [2, [(1, 3), (0, 0), (2, 4)]],  # 2x2 scaling with color map
+    [2, [(1, 4), (0, 3), (2, 0)]],
+    [3, [(1, 3), (0, 0), (2, 4)]]   # 3x3 scaling with color map
+]
 
 def colour_change(grid, old_colour, new_colour):
     '''
@@ -173,9 +178,22 @@ def positional_shift(grid, old_colour, new_colour, r_offset, c_offset):
             else:
                 new_grid[r][c] = grid[r][c]
 
-def colour_map_multiple()
+def colour_map_multiple(grid, colour_map):
+    new_grid = [row[:] for row in grid]
+    for r in range(len(grid)):
+        for c in range(len(grid[0])):
+            val = new_grid[r][c]
+            for mapping in colour_map:
+                if mapping[0] == val:
+                    new_grid[r][c] = mapping[1]
+    return new_grid
 
-        
+def scale_with_colour_map(grid, scale_factor, colour_map):
+    new_grid = []
+    for r in range(len(grid)):
+        for _ 
+
+
 OPERATIONS = {
     "SwapColour": swap_colours,
     "ColourChange": colour_change,
@@ -188,6 +206,7 @@ OPERATIONS = {
     "Scale2x1": scale_2x1,
     "Scale1x2": scale_1x2,
     "PositionalShift": positional_shift,
+    "ColourMapMultiple": colour_map_multiple,
 }
 
 #
@@ -252,6 +271,18 @@ def generate_children(program):
             children.append(create_child(program, "ResizeIrregular", [i, j]))
     
     # Positional shift
+    for c1 in range(NUM_COLOURS):
+        for c2 in range(NUM_COLOURS):
+            for s1 in range(len(SHIFTS)):
+                for s2 in range(len(SHIFTS)):
+                    children.append(create_child(program, "PositionalShift", [c1, c2, s1, c2]))
+
+    # Colour Map Multiple
+    for map in COLOUR_MAP:
+        children.append(create_child(program, "ColourMapMultiple", [map]))
+    
+    # Scale With Colour Map
+
 
 
     return children
