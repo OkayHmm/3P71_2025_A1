@@ -4,11 +4,13 @@
 import random
 import unittest
 import json
+import itertools
+from queue import PriorityQueue
 from enum import Enum, auto
 from collections import deque
 
-NUM_COLOURS = 10
-MAX_COMPLEXITY = 3
+NUM_COLOURS = 4
+MAX_COMPLEXITY = 1
 SOLUTIONS_FILE = "C:/Users/User/Documents/School/3P71 TA 2025/3P71_2025_A1/benchmark/arc-agi_solutions.json"
 CHALLENGES_FILE = "C:/Users/User/Documents/School/3P71 TA 2025/3P71_2025_A1/benchmark/arc-agi_challenges.json"
 
@@ -35,7 +37,8 @@ class Colour(Enum):
 
 SCALE_FACTORS = [2, 3]
 SHIFTS = [-1, 0, 1]
-DIMENSIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+#DIMENSIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+DIMENSIONS = [1, 2, 3, 4]
 COLOUR_MAP = [
     [(0, 4), (1, 0), (2, 3)],  # Specific mapping found in e8c4b1f6
     [(1, 3), (0, 4), (2, 0)],  # Common variations
@@ -282,7 +285,7 @@ def generate_children(program):
         children.append(create_child(program, "Rotate", [degrees]))
 
     # Scale
-    children.append(create_child(program, "Scale2x2"))
+    children.append(create_child(program, "Scale2x2")) 
     children.append(create_child(program, "Scale3x3"))
     children.append(create_child(program, "Scale2x1"))
     children.append(create_child(program, "Scale1x2"))
@@ -352,17 +355,55 @@ def BFS(train_data, complexity_limit):
     return None
 
 def AStar(train_data, complexity_limit):
-    print("TBU")
+    '''
+    Performs an A* search...
+    '''
+    frontier_pq = PriorityQueue()
+    seen_costs = {}
+    came_from = {}
+
+    expected_grids = [x['output'] for x in train_data]
+    start_grids = [x['input'] for x in train_data]
+    counter = itertools.count()
+    eval = misplaced_tiles_heuristic(start_grids, expected_grids)
+    initial_program = Program(grids=start_grids)
+    frontier_pq.put((eval, next(counter), initial_program))
+    seen_costs[initial_program] = 0
+    came_from[initial_program] = None
+    
+    
+    while(frontier_pq.not_empty):
+        current_program = frontier_pq.get()[2]
+        if is_program_acceptable(current_program, train_data):
+            print("AStar found a solution.")
+            return current_program
+        if current_program.complexity < complexity_limit:
+            children = generate_children(current_program)   
+            for child in children:
+                new_path_cost = seen_costs[current_program] + 1
+                eval = misplaced_tiles_heuristic(child.grids, expected_grids) + new_path_cost # f(n) = h(n) + g(n)
+                if child not in seen_costs or new_path_cost < seen_costs[child]:
+                    seen_costs[child] = new_path_cost
+                    came_from[child] = current_program
+                    frontier_pq.put((eval, next(counter), child))                    
+
+    print(f"AStar finished without finding a solution (complexity limit: {complexity_limit})")
+    return None
+
 
 def GFS(train_data, complexity_limit):
+    '''
+    Greedy-first Search
+    '''
+    visited = {}
+    to_visit_pq = PriorityQueue()
+
     print("TBU")
 
 # Heuristics
 
-def misplaced_tiles_heuristic(train_data, grids):
-    expected_grids=[x['output'] for x in train_data]
+def misplaced_tiles_heuristic(grids, expected_grids):
     total = 0
-    
     assert len(expected_grids) == len(grids)
     for i in range(len(expected_grids)):
         total += count_misplaced_tiles(grids[i], expected_grids[i])
@@ -374,15 +415,22 @@ def count_misplaced_tiles(grid, expected_grid):
 
     for r in range(rows):
         for c in range(cols):
-            if grid[r][c] != expected_grid[r][c]:
+            if r >= len(expected_grid) or c >= len(expected_grid[0]) or grid[r][c] != expected_grid[r][c]:
                 count += 1
     return count
 
 class Program():
-    def __init__(self, grids=[], seq=[], complexity=0):
+    def __init__(self, grids, seq=[], complexity=0):
         self.grids = grids # [training example][grid]
         self.sequence = seq # [operation, argument_1, argument_2, ... , argument_x]
         self.complexity = complexity
+        self.uid = hash(str(grids))
+
+    def __hash__(self):
+        return self.uid
+    
+    def __eq__(self, other):
+        return isinstance(other, Program) and self.grids == other.grids
 
     # def apply_to_grid(self, grid):
     #     '''
@@ -456,3 +504,7 @@ if __name__ == "__main__":
         BFS_result = BFS(train_data, MAX_COMPLEXITY)
         if BFS_result is not None:
             print(BFS_result.sequence)
+
+        # AStar_result = AStar(train_data, MAX_COMPLEXITY)
+        # if AStar_result is not None:
+        #     print(AStar_result.sequence)
