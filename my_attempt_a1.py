@@ -124,23 +124,6 @@ def resize_irregular(grid, new_height, new_width):
         new_grid.append(new_row)
     return new_grid
 
-def diagonal_reflection(grid, old_colour, new_colour):
-    '''
-    Reflects all elements of old_colour across the diagonal, then sets them to new_colour, all old positions of old_colour are set blank
-    '''
-    # Reflect colour across diagonal and change it
-    new_grid = [row[:] for row in grid]  # Create copy
-    
-    for r in range(len(grid)):
-        for c in range(len(grid[0])):
-            if grid[r][c] == old_colour:
-                # Clear the original position
-                new_grid[r][c] = 0
-                # Reflect across main diagonal (swap r and c)
-                if c < len(grid) and r < len(grid[0]):
-                    new_grid[c][r] = new_colour
-    return new_grid
-
 def scale_2x2(grid):
     return scale_by(grid, 2, 2)
 
@@ -177,6 +160,7 @@ def positional_shift(grid, old_colour, new_colour, r_offset, c_offset):
                     new_grid[r + r_offset][c + c_offset] = new_colour
             else:
                 new_grid[r][c] = grid[r][c]
+    return new_grid
 
 def colour_map_multiple(grid, colour_map):
     new_grid = [row[:] for row in grid]
@@ -189,10 +173,46 @@ def colour_map_multiple(grid, colour_map):
     return new_grid
 
 def scale_with_colour_map(grid, scale_factor, colour_map):
+    colour_map = dict(colour_map)
     new_grid = []
-    for r in range(len(grid)):
-        for _ 
+    for row in grid:
+        # Create scale_factor rows for each original row
+        for _ in range(scale_factor):
+            new_row = []
+            for cell in row:
+                # Map color and repeat scale_factor times
+                mapped_color = colour_map.get(cell, cell)
+                new_row.extend([mapped_color] * scale_factor)
+            new_grid.append(new_row)
+    return new_grid
 
+def SwapColours(grid, first_colour, second_colour):
+    new_grid = [[0 for c in range(len(grid[0]))] for r in range(len(grid))]
+    for r in range(len(grid)):
+        for c in range(len(grid[0])):
+            if grid[r][c] == first_colour:
+                new_grid[r][c] = second_colour
+            elif grid[r][c] == second_colour:
+                new_grid[r][c] = first_colour
+            else:
+                new_grid[r][c] = grid[r][c]
+    return new_grid
+
+def diagonal_reflection(grid, old_colour, new_colour):
+    '''
+    Reflects all elements of old_colour across the diagonal, then sets them to new_colour, all old positions of old_colour are set blank
+    '''
+    # Reflect colour across diagonal and change it
+    new_grid = [row[:] for row in grid]  # Create copy
+    for r in range(len(grid)):
+        for c in range(len(grid[0])):
+            if grid[r][c] == old_colour:
+                # Clear the original position
+                new_grid[r][c] = 0
+                # Reflect across main diagonal (swap r and c)
+                if c < len(grid) and r < len(grid[0]):
+                    new_grid[c][r] = new_colour
+    return new_grid
 
 OPERATIONS = {
     "SwapColour": swap_colours,
@@ -207,6 +227,8 @@ OPERATIONS = {
     "Scale1x2": scale_1x2,
     "PositionalShift": positional_shift,
     "ColourMapMultiple": colour_map_multiple,
+    "ScaleWithColourMap": scale_with_colour_map,
+    "SwapColours": swap_colours,
 }
 
 #
@@ -266,8 +288,8 @@ def generate_children(program):
     children.append(create_child(program, "Scale1x2"))
 
     # Resize irregular
-    for i in range(len(DIMENSIONS)):
-        for j in range(len(DIMENSIONS)):
+    for i in DIMENSIONS:
+        for j in DIMENSIONS:
             children.append(create_child(program, "ResizeIrregular", [i, j]))
     
     # Positional shift
@@ -282,8 +304,18 @@ def generate_children(program):
         children.append(create_child(program, "ColourMapMultiple", [map]))
     
     # Scale With Colour Map
+    for scale_factor, colour_map in SCALE_COLOUR_MAPS:
+        children.append(create_child(program, "ScaleWithColourMap", [scale_factor, colour_map]))
 
+    # Swap Colours
+    for c1 in range(1, NUM_COLOURS):
+        for c2 in range(1, NUM_COLOURS):
+            children.append(create_child(program, "SwapColours", [c1, c2]))
 
+    # Diagonal Reflection
+    for c1 in range(1, NUM_COLOURS):
+        for c2 in range(1, NUM_COLOURS):
+            children.append(create_child(program, "DiagonalReflection", [c1, c2]))
 
     return children
 
@@ -318,6 +350,33 @@ def BFS(train_data, complexity_limit):
             to_visit.extend(generate_children(program))
     print(f"BFS finished without finding a solution (complexity limit: {complexity_limit})")
     return None
+
+def AStar(train_data, complexity_limit):
+    print("TBU")
+
+def GFS(train_data, complexity_limit):
+    print("TBU")
+
+# Heuristics
+
+def misplaced_tiles_heuristic(train_data, grids):
+    expected_grids=[x['output'] for x in train_data]
+    total = 0
+    
+    assert len(expected_grids) == len(grids)
+    for i in range(len(expected_grids)):
+        total += count_misplaced_tiles(grids[i], expected_grids[i])
+    return total
+
+def count_misplaced_tiles(grid, expected_grid):
+    rows, cols = len(grid), len(grid[0])
+    count = 0
+
+    for r in range(rows):
+        for c in range(cols):
+            if grid[r][c] != expected_grid[r][c]:
+                count += 1
+    return count
 
 class Program():
     def __init__(self, grids=[], seq=[], complexity=0):
