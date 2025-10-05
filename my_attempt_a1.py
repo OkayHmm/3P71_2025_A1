@@ -5,14 +5,15 @@ import random
 import unittest
 import json
 import itertools
+import time
 from queue import PriorityQueue
 from enum import Enum, auto
 from collections import deque
 
 NUM_COLOURS = 4
-MAX_COMPLEXITY = 1
-SOLUTIONS_FILE = "C:/Users/User/Documents/School/3P71 TA 2025/3P71_2025_A1/benchmark/arc-agi_solutions.json"
-CHALLENGES_FILE = "C:/Users/User/Documents/School/3P71 TA 2025/3P71_2025_A1/benchmark/arc-agi_challenges.json"
+MAX_COMPLEXITY = 3
+SOLUTIONS_FILE = "C:/Users/Username/Documents/School/3P71 TA 2025/3P71_2025_A1/benchmark/arc-agi_solutions.json"
+CHALLENGES_FILE = "C:/Users/Username/Documents/School/3P71 TA 2025/3P71_2025_A1/benchmark/arc-agi_challenges.json"
 
 class Axis(Enum):
     HORIZONTAL = auto()
@@ -273,7 +274,7 @@ def generate_children(program):
 
     # Generate all possible colour changes
     for i in range(1, NUM_COLOURS):
-        for j in range(1, NUM_COLOURS):
+        for j in range(i+1, NUM_COLOURS):
             children.append(create_child(program, "ColourChange", [i, j]))
     
     # Mirrors
@@ -312,12 +313,12 @@ def generate_children(program):
 
     # Swap Colours
     for c1 in range(1, NUM_COLOURS):
-        for c2 in range(1, NUM_COLOURS):
+        for c2 in range(c1+1, NUM_COLOURS):
             children.append(create_child(program, "SwapColours", [c1, c2]))
 
     # Diagonal Reflection
     for c1 in range(1, NUM_COLOURS):
-        for c2 in range(1, NUM_COLOURS):
+        for c2 in range(c1+1, NUM_COLOURS):
             children.append(create_child(program, "DiagonalReflection", [c1, c2]))
 
     return children
@@ -343,9 +344,9 @@ def is_program_acceptable(program, train_data):
 def BFS(train_data, complexity_limit):
     initial_program = Program(grids=[x['input'] for x in train_data])
     to_visit = deque()
-    to_visit.extend(generate_children(initial_program))
+    to_visit.append(initial_program)
     while(to_visit):
-        program = to_visit.pop()
+        program = to_visit.popleft()
         if is_program_acceptable(program, train_data):
             print("BFS found a solution.")
             return program
@@ -372,8 +373,8 @@ def AStar(train_data, complexity_limit):
     came_from[initial_program] = None
     
     
-    while(frontier_pq.not_empty):
-        current_program = frontier_pq.get()[2]
+    while(frontier_pq.qsize() > 0):
+        current_program = frontier_pq.get(block=False)[2]
         if is_program_acceptable(current_program, train_data):
             print("AStar found a solution.")
             return current_program
@@ -395,10 +396,38 @@ def GFS(train_data, complexity_limit):
     '''
     Greedy-first Search
     '''
-    visited = {}
-    to_visit_pq = PriorityQueue()
+    visited = set()
+    frontier_pq = PriorityQueue()
 
-    print("TBU")
+    expected_grids = [x['output'] for x in train_data]
+    start_grids = [x['input'] for x in train_data]
+    counter = itertools.count()
+    eval = misplaced_tiles_heuristic(start_grids, expected_grids)
+    initial_program = Program(grids=start_grids)
+    frontier_pq.put((eval, next(counter), initial_program))
+
+    while(frontier_pq.qsize() > 0):
+        current_program = frontier_pq.get()[2]
+
+        if current_program in visited:
+            continue
+
+        if is_program_acceptable(current_program, train_data):
+            print("GFS found a solution.")
+            return current_program
+        
+        visited.add(current_program)
+        
+        if current_program.complexity < complexity_limit:
+            children = generate_children(current_program)   
+            for child in children:
+                if child not in visited:
+                    eval = misplaced_tiles_heuristic(child.grids, expected_grids)
+                    frontier_pq.put((eval, next(counter), child))
+
+    print(f"GFS finished without finding a solution (complexity limit: {complexity_limit})")
+    return None
+    
 
 # Heuristics
 
@@ -493,7 +522,8 @@ if __name__ == "__main__":
         exit()
 
     print("Train / test data loaded.")
-    count_success = 0
+    count_success = {"BFS": 0, "GFS": 0, "AStar": 0}
+    total_examples = len(challenges_data)
 
     for example in challenges_data:
         print(f"\nTraining example {example}")
@@ -501,10 +531,28 @@ if __name__ == "__main__":
         test_data = challenges_data[example]['test']
         test_solution = solutions_data[example]
 
+        timestamp = time.time_ns()
         BFS_result = BFS(train_data, MAX_COMPLEXITY)
         if BFS_result is not None:
             print(BFS_result.sequence)
+            count_success["BFS"] += 1 
+        print(f"BFS time (ns): {time.time_ns() - timestamp}")
 
-        # AStar_result = AStar(train_data, MAX_COMPLEXITY)
-        # if AStar_result is not None:
-        #     print(AStar_result.sequence)
+        timestamp = time.time_ns()
+        GFS_result = GFS(train_data, MAX_COMPLEXITY)
+        if GFS_result is not None:
+            print(GFS_result.sequence)
+            count_success["GFS"] += 1 
+        print(f"GFS time (ns): {time.time_ns() - timestamp}")
+
+        timestamp = time.time_ns()
+        AStar_result = AStar(train_data, MAX_COMPLEXITY)
+        if AStar_result is not None:
+            print(AStar_result.sequence)
+            count_success["AStar"] += 1
+        print(f"AStar time (ns): {time.time_ns() - timestamp}")
+
+    print("Training data finding a solution success rates:")
+    print(f"BFS: {count_success["BFS"]}/{total_examples} ({count_success["BFS"]/total_examples:.2f})")
+    print(f"GFS: {count_success["GFS"]}/{total_examples} ({count_success["GFS"]/total_examples:.2f})")
+    print(f"AStar: {count_success["AStar"]}/{total_examples} ({count_success["AStar"]/total_examples:.2f})")
