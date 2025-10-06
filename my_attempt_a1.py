@@ -10,8 +10,9 @@ from queue import PriorityQueue
 from enum import Enum, auto
 from collections import deque
 
+#NUM_COLOURS = 10
 NUM_COLOURS = 4
-MAX_COMPLEXITY = 3
+MAX_COMPLEXITY = 5
 SOLUTIONS_FILE = "benchmark/arc-agi_solutions.json"
 CHALLENGES_FILE = "benchmark/arc-agi_challenges.json"
 
@@ -265,6 +266,9 @@ def print_grid(grid):
     print(out)
 
 def generate_children(program):
+    '''
+    Generate all possible children for a given program, each child represents a new operation being added to the existing sequence
+    '''
     children = []
 
     # Generate all possible colour swaps
@@ -292,9 +296,9 @@ def generate_children(program):
     children.append(create_child(program, "Scale1x2"))
 
     # Resize irregular
-    for i in DIMENSIONS:
-        for j in DIMENSIONS:
-            children.append(create_child(program, "ResizeIrregular", [i, j]))
+    # for i in DIMENSIONS:
+    #     for j in DIMENSIONS:
+    #         children.append(create_child(program, "ResizeIrregular", [i, j]))
     
     # Positional shift
     for c1 in range(NUM_COLOURS):
@@ -342,22 +346,32 @@ def is_program_acceptable(program, train_data):
 #
 
 def BFS(train_data, complexity_limit):
+    '''
+    Performs a Breadth-First Search
+    '''
     initial_program = Program(grids=[x['input'] for x in train_data])
+    seen = set()
     to_visit = deque()
     to_visit.append(initial_program)
+    seen.add(initial_program)
+
     while(to_visit):
         program = to_visit.popleft()
         if is_program_acceptable(program, train_data):
             print("BFS found a solution.")
             return program
         if program.complexity < complexity_limit:
-            to_visit.extend(generate_children(program))
+            children = generate_children(program)
+            for child in children:
+                if child not in seen:
+                    to_visit.append(child)
+                    seen.add(child)
     print(f"BFS finished without finding a solution (complexity limit: {complexity_limit})")
     return None
 
 def AStar(train_data, complexity_limit):
     '''
-    Performs an A* search...
+    Performs an A* search
     '''
     frontier_pq = PriorityQueue()
     seen_costs = {}
@@ -394,7 +408,7 @@ def AStar(train_data, complexity_limit):
 
 def GFS(train_data, complexity_limit):
     '''
-    Greedy-first Search
+    Performs a Greedy-first Search
     '''
     visited = set()
     frontier_pq = PriorityQueue()
@@ -514,7 +528,7 @@ if __name__ == "__main__":
 
     print("Train / test data loaded.")
     total_examples = len(challenges_data)
-    algorithms = {"BFS", "GFS", "AStar"}
+    algorithms = ["BFS", "GFS", "AStar"]
     count_train_success = {}
     count_test_success = {}
     solutions = {}
