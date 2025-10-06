@@ -12,8 +12,8 @@ from collections import deque
 
 NUM_COLOURS = 4
 MAX_COMPLEXITY = 3
-SOLUTIONS_FILE = "C:/Users/Username/Documents/School/3P71 TA 2025/3P71_2025_A1/benchmark/arc-agi_solutions.json"
-CHALLENGES_FILE = "C:/Users/Username/Documents/School/3P71 TA 2025/3P71_2025_A1/benchmark/arc-agi_challenges.json"
+SOLUTIONS_FILE = "benchmark/arc-agi_solutions.json"
+CHALLENGES_FILE = "benchmark/arc-agi_challenges.json"
 
 class Axis(Enum):
     HORIZONTAL = auto()
@@ -448,6 +448,17 @@ def count_misplaced_tiles(grid, expected_grid):
                 count += 1
     return count
 
+def apply_sequence_to_grid(grid, sequence):
+    '''
+    Apply all operations in the sequence on the grid and return the output
+    '''
+    for seq in sequence:
+        method_name = seq[0]
+        args = seq[1:]
+        method_obj = OPERATIONS[method_name]
+        grid = method_obj(grid, *args)
+    return grid
+
 class Program():
     def __init__(self, grids, seq=[], complexity=0):
         self.grids = grids # [training example][grid]
@@ -460,18 +471,6 @@ class Program():
     
     def __eq__(self, other):
         return isinstance(other, Program) and self.grids == other.grids
-
-    # def apply_to_grid(self, grid):
-    #     '''
-    #     Perform all operations listed in sequence on initial grid to find final grid (state)
-    #     '''
-    #     for seq in self.sequence:
-    #         method_name = seq[0]
-    #         args = seq[1:]
-    #         method_obj = globals()[method_name]
-    #         method_obj(grid, *args)
-
-
 
 class TestGridOperations(unittest.TestCase):
     def test_rotate_90(self):
@@ -499,15 +498,7 @@ class TestGridOperations(unittest.TestCase):
         self.assertEqual(expected, result)
 
 if __name__ == "__main__":
-    unittest.main(exit=False)
-
-    
-    #grid = create_random_grid(3);
-    # grid = [[4,1,2],[7,0,1],[0,8,1]]
-    # print_grid(grid)
-    # test = diagonal_reflection(grid, 1, 2);
-    # print_grid(test)
-    # exit()
+    #unittest.main(exit=False)
 
     try:
         with open(CHALLENGES_FILE, 'r') as file:
@@ -522,8 +513,15 @@ if __name__ == "__main__":
         exit()
 
     print("Train / test data loaded.")
-    count_success = {"BFS": 0, "GFS": 0, "AStar": 0}
     total_examples = len(challenges_data)
+    algorithms = {"BFS", "GFS", "AStar"}
+    count_train_success = {}
+    count_test_success = {}
+    solutions = {}
+    for algo in algorithms:
+        count_train_success[algo] = 0
+        count_test_success[algo] = 0
+        solutions[algo] = []
 
     for example in challenges_data:
         print(f"\nTraining example {example}")
@@ -531,28 +529,30 @@ if __name__ == "__main__":
         test_data = challenges_data[example]['test']
         test_solution = solutions_data[example]
 
-        timestamp = time.time_ns()
-        BFS_result = BFS(train_data, MAX_COMPLEXITY)
-        if BFS_result is not None:
-            print(BFS_result.sequence)
-            count_success["BFS"] += 1 
-        print(f"BFS time (ns): {time.time_ns() - timestamp}")
+        for algo in algorithms:
+            timestamp = time.time_ns()
+            method = globals()[algo]
+            result = method(train_data, MAX_COMPLEXITY)
+            if result is not None:
+                print(result.sequence)
+                count_train_success[algo] += 1 
+                solutions[algo].append(result.sequence if result is not None else None)
+            print(f"{algo} time: {(time.time_ns() - timestamp) / 1_000_000_000:.4f} seconds")
 
-        timestamp = time.time_ns()
-        GFS_result = GFS(train_data, MAX_COMPLEXITY)
-        if GFS_result is not None:
-            print(GFS_result.sequence)
-            count_success["GFS"] += 1 
-        print(f"GFS time (ns): {time.time_ns() - timestamp}")
-
-        timestamp = time.time_ns()
-        AStar_result = AStar(train_data, MAX_COMPLEXITY)
-        if AStar_result is not None:
-            print(AStar_result.sequence)
-            count_success["AStar"] += 1
-        print(f"AStar time (ns): {time.time_ns() - timestamp}")
+            # Now let's check the test case
+            if result is not None:
+                result_grid = apply_sequence_to_grid(test_data[0]['input'], result.sequence)
+                if(result_grid == test_solution[0]):
+                    print(f"{algo}'s solution passed the test case.")
+                    count_test_success[algo] += 1
+                else:
+                    print(f"{algo}'s solution failed the test case.")
+        
 
     print("Training data finding a solution success rates:")
-    print(f"BFS: {count_success["BFS"]}/{total_examples} ({count_success["BFS"]/total_examples:.2f})")
-    print(f"GFS: {count_success["GFS"]}/{total_examples} ({count_success["GFS"]/total_examples:.2f})")
-    print(f"AStar: {count_success["AStar"]}/{total_examples} ({count_success["AStar"]/total_examples:.2f})")
+    for algo in algorithms:
+        print(f"{algo}: {count_train_success[algo]}/{total_examples} ({count_train_success[algo]/total_examples:.2f})")
+    print("Test case pass rates:")
+    for algo in algorithms:
+        print(f"{algo}: {count_test_success[algo]}/{total_examples} ({count_test_success[algo]/total_examples:.2f})")
+
